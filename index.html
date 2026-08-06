@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1565C0">
+  <meta name="description" content="Scanner Absensi QR Sekolah">
+  <title>Scanner Absensi QR</title>
+
+  <!-- ============================================================
+       LIBRARY CSS (CDN)
+       Bootstrap 5, Font Awesome 6, SweetAlert2
+       ============================================================ -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+
+  <!-- ============================================================
+       CUSTOM CSS
+       Modern, Material Design, Flat, Responsive, Animasi halus
+       ============================================================ -->
+  <style>
+    /* ===== ROOT VARIABLES ===== */
+    :root {
+      --primary: #1565C0;
+      --primary-dark: #0D47A1;
+      --primary-light: #42A5F5;
+      --success: #2E7D32;
+      --success-light: #4CAF50;
+      --danger: #C62828;
+      --danger-light: #EF5350;
+      --bg-gradient: linear-gradient(135deg, #1565C0 0%, #0D47A1 100%);
+      --bg-page: #f0f2f5;
+    }
+
+    /* ===== RESET & BASE ===== */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow-x: hidden;
+      font-family: 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
+      background: var(--bg-page);
+    }
+
+    /* ============================================================
+       SPLASH SCREEN
+       ============================================================ */
+    #splashScreen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-gradient);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #splashScreen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .splash-logo {
+      width: 120px;
+      height: 120px;
+      background: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+      color: var(--primary);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      animation: splashPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes splashPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    .splash-title {
+      color: #fff;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-top: 24px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .splash-subtitle {
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      margin-top: 8px;
+    }
+    .splash-spinner {
+      margin-top: 32px;
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ============================================================
+       SCREEN MANAGEMENT
+       ============================================================ */
+    .screen {
+      display: none;
+      min-height: 100vh;
+    }
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      animation: fadeIn 0.4s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ============================================================
+       HOME SCREEN
+       ============================================================ */
+    #homeScreen { background: var(--bg-page); }
+
+    .home-header {
+      background: var(--bg-gradient);
+      color: #fff;
+      padding: 28px 20px 44px;
+      border-radius: 0 0 28px 28px;
+      box-shadow: 0 4px 20px rgba(21,101,192,0.3);
+    }
+    .home-school-name {
+      font-size: 1.4rem;
+      font-weight: 700;
+      text-align: center;
+      margin: 0;
+    }
+    .home-school-sub {
+      text-align: center;
+      font-size: 0.85rem;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .home-body {
+      flex: 1;
+      padding: 24px 20px;
+      margin-top: -24px;
+    }
+
+    .info-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .info-date {
+      font-size: 1rem;
+      color: #555;
+      font-weight: 600;
+      margin: 0;
+    }
+    .info-time {
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 8px 0;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 2px;
+    }
+    .info-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .status-online  { background: #E8F5E9; color: var(--success); }
+    .status-offline { background: #FFEBEE; color: var(--danger);  }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .status-online .status-dot {
+      background: var(--success-light);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+    .status-offline .status-dot { background: var(--danger-light); }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.4; }
+    }
+
+    .mode-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 14px;
+      border: 2px solid #E0E0E0;
+      background: #fff;
+      border-radius: 14px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-size: 0.95rem;
+    }
+    .mode-btn.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(21,101,192,0.3);
+    }
+    .mode-btn i {
+      display: block;
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+    }
+
+    .scan-btn-wrapper {
+      display: flex;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    .scan-btn {
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      border: none;
+      background: var(--bg-gradient);
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 8px 30px rgba(21,101,192,0.4);
+      transition: transform 0.3s ease;
+      position: relative;
+      overflow: visible;
+    }
+    .scan-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.3);
+      animation: ripple 2s ease-out infinite;
+    }
+    @keyframes ripple {
+      0%   { transform: scale(1);   opacity: 1; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .scan-btn:active { transform: scale(0.95); }
+    .scan-btn i { font-size: 3rem; }
+
+    /* ============================================================
+       SCANNER SCREEN
+       ============================================================ */
+    #scannerScreen { background: #000; }
+
+    .scanner-header {
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 10;
+    }
+    .scanner-back-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .scanner-back-btn:active { background: rgba(255,255,255,0.3); }
+    .scanner-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin: 0;
+      flex: 1;
+    }
+    .scanner-mode-badge {
+      background: var(--primary);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .scanner-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #reader {
+      width: 100% !important;
+      height: 100% !important;
+      border: none !important;
+    }
+    #reader video {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover !important;
+    }
+
+    .scan-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .scan-frame {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 70vw;
+      max-width: 300px;
+      height: 70vw;
+      max-height: 300px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 16px;
+    }
+    .scan-frame::before,
+    .scan-frame::after,
+    .scan-frame > span::before,
+    .scan-frame > span::after {
+      content: '';
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border: 4px solid #fff;
+    }
+    .scan-frame::before {
+      top: -2px; left: -2px;
+      border-right: none; border-bottom: none;
+      border-radius: 16px 0 0 0;
+    }
+    .scan-frame::after {
+      top: -2px; right: -2px;
+      border-left: none; border-bottom: none;
+      border-radius: 0 16px 0 0;
+    }
+    .scan-frame > span::before {
+      bottom: -2px; left: -2px;
+      border-right: none; border-top: none;
+      border-radius: 0 0 0 16px;
+    }
+    .scan-frame > span::after {
+      bottom: -2px; right: -2px;
+      border-left: none; border-top: none;
+      border-radius: 0 0 16px 0;
+    }
+    .scan-line {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--primary-light), transparent);
+      box-shadow: 0 0 12px var(--primary-light);
+      animation: scanLine 2.5s ease-in-out infinite;
+    }
+    @keyframes scanLine {
+      0%, 100% { top: 0; }
+      50%      { top: calc(100% - 3px); }
+    }
+
+    .scanner-controls {
+      position: absolute;
+      bottom: 30px;
+      left: 0; right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      z-index: 10;
+    }
+    .control-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #fff;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .control-btn:active { transform: scale(0.9); }
+    .control-btn.active { background: var(--primary-light); }
+    .control-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .scanner-hint {
+      position: absolute;
+      bottom: 100px;
+      left: 0; right: 0;
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .camera-error {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.9);
+      color: #fff;
+      padding: 30px;
+      border-radius: 20px;
+      text-align: center;
+      max-width: 90%;
+      z-index: 20;
+    }
+    .camera-error i {
+      font-size: 3rem;
+      color: var(--danger-light);
+      margin-bottom: 16px;
+    }
+    .camera-error h5 { font-weight: 700; margin-bottom: 8px; }
+    .camera-error p {
+      font-size: 0.85rem;
+      opacity: 0.85;
+      margin-bottom: 16px;
+      word-break: break-word;
+    }
+
+    .manual-input-section {
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.85);
+    }
+    .manual-input-section .input-group {
+      background: rgba(255,255,255,0.12);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .manual-input-section input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      padding: 12px 16px;
+      box-shadow: none;
+    }
+    .manual-input-section input::placeholder { color: rgba(255,255,255,0.5); }
+    .manual-input-section input:focus {
+      outline: none;
+      box-shadow: none;
+      background: rgba(255,255,255,0.05);
+    }
+    .manual-input-section button {
+      background: var(--primary);
+      border: none;
+      color: #fff;
+      padding: 12px 20px;
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       RESPONSIVE
+       ============================================================ */
+    @media (min-width: 768px) {
+      .home-body { max-width: 500px; margin: -24px auto 0; }
+    }
+
+    /* ============================================================
+       SWEETALERT2 CUSTOM STYLES
+       ============================================================ */
+    .swal2-popup.result-success { border-top: 6px solid var(--success-light) !important; }
+    .swal2-popup.result-error   { border-top: 6px solid var(--danger-light)  !important; }
+    .result-icon-success { font-size: 3.5rem; color: var(--success-light); }
+    .result-icon-error   { font-size: 3.5rem; color: var(--danger-light);  }
+    .result-info { text-align: left; margin: 16px 0; }
+    .result-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .result-info-row:last-child { border-bottom: none; }
+    .result-info-label { font-weight: 600; color: #666; }
+    .result-info-value { color: #333; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================
+       SPLASH SCREEN
+       ============================================================ -->
+  <div id="splashScreen">
+    <div class="splash-logo">
+      <i class="fas fa-school"></i>
+    </div>
+    <div class="splash-title">Scanner Absensi QR</div>
+    <div class="splash-subtitle">Sistem Absensi Digital Sekolah</div>
+    <div class="splash-spinner"></div>
+  </div>
+
+  <!-- ============================================================
+       HOME SCREEN
+       ============================================================ -->
+  <div id="homeScreen" class="screen">
+    <div class="home-header">
+      <h1 class="home-school-name" id="schoolNameHeader">Scanner Absensi</h1>
+      <div class="home-school-sub">Scanner Absensi QR</div>
+    </div>
+
+    <div class="home-body">
+      <div class="info-card">
+        <p class="info-date" id="infoDate">—</p>
+        <div class="info-time" id="infoTime">00:00:00</div>
+        <div class="info-status status-online" id="connStatus">
+          <span class="status-dot"></span>
+          <span id="connText">Online</span>
+        </div>
+      </div>
+
+      <div class="mode-selector">
+        <button class="mode-btn active" data-mode="masuk" id="modeMasukBtn">
+          <i class="fas fa-door-open"></i>
+          Masuk
+        </button>
+        <button class="mode-btn" data-mode="pulang" id="modePulangBtn">
+          <i class="fas fa-door-closed"></i>
+          Pulang
+        </button>
+      </div>
+
+      <div class="scan-btn-wrapper">
+        <button class="scan-btn" id="startScanBtn">
+          <i class="fas fa-qrcode"></i>
+          <span>SCAN QR</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCANNER SCREEN
+       ============================================================ -->
+  <div id="scannerScreen" class="screen">
+    <div class="scanner-header">
+      <button class="scanner-back-btn" id="backBtn" title="Kembali">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+      <h2 class="scanner-title">Scan QR Siswa</h2>
+      <span class="scanner-mode-badge" id="scannerModeBadge">Masuk</span>
+    </div>
+
+    <div class="scanner-container">
+      <div id="reader"></div>
+
+      <div class="scan-overlay">
+        <div class="scan-frame">
+          <span></span>
+          <div class="scan-line"></div>
+        </div>
+      </div>
+
+      <div class="scanner-hint" id="scannerHint">
+        Arahkan kamera ke QR Code siswa
+      </div>
+
+      <div class="scanner-controls">
+        <button class="control-btn" id="flashBtn" title="Flash" disabled>
+          <i class="fas fa-bolt"></i>
+        </button>
+        <button class="control-btn" id="switchCameraBtn" title="Ganti Kamera">
+          <i class="fas fa-camera-rotate"></i>
+        </button>
+      </div>
+
+      <div class="camera-error" id="cameraError" style="display:none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h5 id="cameraErrorTitle">Kamera Tidak Dapat Dibuka</h5>
+        <p id="cameraErrorMsg">Terjadi kesalahan.</p>
+        <button class="btn btn-light" id="cameraRetryBtn">
+          <i class="fas fa-redo"></i> Coba Lagi
+        </button>
+      </div>
+    </div>
+
+    <div class="manual-input-section">
+      <div class="input-group">
+        <input type="text" class="form-control" id="manualInput"
+               placeholder="Atau ketik NIS secara manual...">
+        <button class="btn" id="manualSubmitBtn">
+          <i class="fas fa-paper-plane"></i> Kirim
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       LIBRARY JAVASCRIPT (CDN)
+       ============================================================ -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- ============================================================
+       APPLICATION JAVASCRIPT
+       ============================================================ -->
+  <script>
+    'use strict';
+
+    /* ==========================================================
+       KONFIGURASI APLIKASI
+       ========================================================== */
+    const API_URL = "https://script.google.com/macros/s/AKfycbyUe7hj5XWonxJzB0PwYe_CQLXUsL4KIAINOhL2JKGMSvGnYgJy6vGUdCSbeivNRH3S/exec";
+    const REQUEST_TIMEOUT = 15000;
+    const SCHOOL_NAME = "SMK Negeri 1 Teknologi";
+
+    /* ==========================================================
+       STATE GLOBAL APLIKASI
+       ========================================================== */
+    let html5QrCode = null;
+    let cameras = [];
+    let currentCameraIndex = 0;
+    let isScanning = false;
+    let torchOn = false;
+    let torchSupported = false;
+    let currentMode = 'masuk';
+    let isProcessing = false;
+    let lastScannedId = '';
+
+    /* ==========================================================
+       UTILITY: PLAY BEEP SOUND
+       ========================================================== */
+    const playBeep = () => {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+
+        const ctx = new AudioContext();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+
+        setTimeout(() => ctx.close(), 500);
+      } catch (err) {
+        console.warn('Gagal memutar beep:', err);
+      }
+    };
+
+    /* ==========================================================
+       UTILITY: VIBRATE
+       ========================================================== */
+    const vibrate = (pattern = 200) => {
+      if (navigator.vibrate) {
+        navigator.vibrate(pattern);
+      }
+    };
+
+    /* ==========================================================
+       UTILITY: FORMAT TANGGAL & WAKTU
+       ========================================================== */
+    const formatDate = (date) => {
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      return `${days[date.getDay()]}, ${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    };
+
+    const formatTime = (date) => {
+      const h = String(date.getHours()).padStart(2, '0');
+      const m = String(date.getMinutes()).padStart(2, '0');
+      const s = String(date.getSeconds()).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    };
+
+    /* ==========================================================
+       SCREEN MANAGEMENT
+       ========================================================== */
+    const showScreen = (screenId) => {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    };
+
+    const hideSplash = () => {
+      const splash = document.getElementById('splashScreen');
+      splash.classList.add('hidden');
+      setTimeout(() => { splash.style.display = 'none'; }, 600);
+    };
+
+    /* ==========================================================
+       CLOCK & INTERNET STATUS
+       ========================================================== */
+    const startClock = () => {
+      const updateClock = () => {
+        const now = new Date();
+        document.getElementById('infoDate').textContent = formatDate(now);
+        document.getElementById('infoTime').textContent = formatTime(now);
+      };
+      updateClock();
+      setInterval(updateClock, 1000);
+    };
+
+    const updateConnectionStatus = () => {
+      const statusEl = document.getElementById('connStatus');
+      const textEl = document.getElementById('connText');
+      if (navigator.onLine) {
+        statusEl.className = 'info-status status-online';
+        textEl.textContent = 'Online';
+      } else {
+        statusEl.className = 'info-status status-offline';
+        textEl.textContent = 'Offline';
+      }
+    };
+
+    /* ==========================================================
+       MODE SELECTOR
+       ========================================================== */
+    const setMode = (mode) => {
+      currentMode = mode;
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      document.getElementById('scannerModeBadge').textContent =
+        mode === 'masuk' ? 'Masuk' : 'Pulang';
+    };
+
+    /* ==========================================================
+       SCANNER: Dapatkan daftar kamera
+       ========================================================== */
+    const getCameras = async () => {
+      try {
+        cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCameraIndex = cameras.findIndex(cam =>
+            cam.label.toLowerCase().includes('back') ||
+            cam.label.toLowerCase().includes('rear') ||
+            cam.label.toLowerCase().includes('environment')
+          );
+          currentCameraIndex = backCameraIndex !== -1 ? backCameraIndex : cameras.length - 1;
+        }
+      } catch (err) {
+        console.warn('Gagal enumerasi kamera, mencoba langsung membuka kamera belakang...', err);
+        cameras = []; // Kosongkan, nanti akan pakai facingMode
+      }
+    };
+
+    /* ==========================================================
+       SCANNER: Tampilkan error kamera yang spesifik
+       ========================================================== */
+    const showCameraError = (error) => {
+      const errorEl = document.getElementById('cameraError');
+      const titleEl = document.getElementById('cameraErrorTitle');
+      const msgEl = document.getElementById('cameraErrorMsg');
+      const hintEl = document.getElementById('scannerHint');
+
+      let title = 'Kamera Tidak Dapat Dibuka';
+      let message = '';
+
+      if (error && error.name) {
+        switch (error.name) {
+          case 'NotAllowedError':
+            title = 'Izin Kamera Ditolak';
+            message = 'Aplikasi tidak diizinkan mengakses kamera. Buka pengaturan browser/HP, izinkan akses kamera, lalu coba lagi.';
+            break;
+          case 'NotFoundError':
+            title = 'Kamera Tidak Ditemukan';
+            message = 'Tidak ada kamera yang terdeteksi pada perangkat ini. Pastikan kamera terhubung dan berfungsi.';
+            break;
+          case 'NotReadableError':
+            title = 'Kamera Sedang Digunakan';
+            message = 'Kamera sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut, lalu coba lagi.';
+            break;
+          case 'OverconstrainedError':
+            title = 'Konfigurasi Kamera Tidak Didukung';
+            message = `Constraint tidak dapat dipenuhi: ${error.message || ''}`;
+            break;
+          case 'SecurityError':
+            title = 'Error Keamanan (SecurityError)';
+            message = 'Akses kamera diblokir oleh kebijakan keamanan. Pastikan halaman diakses via HTTPS.';
+            break;
+          case 'AbortError':
+            title = 'Proses Dibatalkan';
+            message = 'Proses pembukaan kamera dibatalkan. Silakan coba lagi.';
+            break;
+          default:
+            title = 'Gagal Membuka Kamera';
+            message = `${error.name}: ${error.message || 'Unknown error'}`;
+        }
+      } else if (typeof error === 'string') {
+        message = error;
+      } else {
+        message = 'Terjadi kesalahan tidak diketahui saat membuka kamera.';
+      }
+
+      titleEl.textContent = title;
+      msgEl.textContent = message;
+      errorEl.style.display = 'block';
+      hintEl.style.display = 'none';
+    };
+
+    const hideCameraError = () => {
+      document.getElementById('cameraError').style.display = 'none';
+      document.getElementById('scannerHint').style.display = 'block';
+    };
+
+    /* ==========================================================
+       SCANNER: Cek & Toggle Torch/Flash
+       ========================================================== */
+    const checkTorchSupport = async () => {
+      try {
+        if (!html5QrCode) return;
+        const videoElement = document.getElementById('reader').querySelector('video');
+        if (!videoElement || !videoElement.srcObject) return;
+
+        const stream = videoElement.srcObject;
+        const track = stream.getVideoTracks()[0];
+        if (track && track.getCapabilities) {
+          const capabilities = track.getCapabilities();
+          torchSupported = !!(capabilities && capabilities.torch);
+        }
+      } catch (err) {
+        torchSupported = false;
+      }
+      document.getElementById('flashBtn').disabled = !torchSupported;
+    };
+
+    const toggleTorch = async () => {
+      if (!torchSupported) return;
+      try {
+        const videoElement = document.getElementById('reader').querySelector('video');
+        const stream = videoElement.srcObject;
+        const track = stream.getVideoTracks()[0];
+        torchOn = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+        document.getElementById('flashBtn').classList.toggle('active', torchOn);
+      } catch (err) {
+        console.warn('Gagal toggle torch:', err);
+        torchOn = false;
+        document.getElementById('flashBtn').classList.remove('active');
+      }
+    };
+
+    /* ==========================================================
+       SCANNER: Start scanner (Dengan Fallback Kamera Belakang)
+       ========================================================== */
+    const startScanner = async () => {
+      hideCameraError();
+
+      if (typeof Html5Qrcode === 'undefined') {
+        showCameraError({
+          name: 'LibraryError',
+          message: 'Library html5-qrcode tidak dapat dimuat. Periksa koneksi internet.'
+        });
+        return;
+      }
+
+      try {
+        if (html5QrCode) {
+          try {
+            if (isScanning) await html5QrCode.stop();
+            html5QrCode.clear();
+          } catch (e) {
+            console.warn('Error cleanup:', e);
+          }
+          html5QrCode = null;
+        }
+
+        html5QrCode = new Html5Qrcode("reader");
+
+        const config = {
+          fps: 10,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.7);
+            return { width: size, height: size };
+          },
+          aspectRatio: window.innerHeight / window.innerWidth
+        };
+
+        // Coba ambil daftar kamera
+        if (cameras.length === 0) {
+          await getCameras();
+        }
+
+        // Jika ada kamera, gunakan ID kamera
+        if (cameras.length > 0) {
+          const cameraId = cameras[currentCameraIndex].id;
+          await html5QrCode.start(cameraId, config, onScanSuccess, () => {});
+        } else {
+          // FALLBACK: Jika izin kamera baru pertama kali diminta / enumerasi gagal, 
+          // langsung pakai facingMode "environment" (kamera belakang)
+          await html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            onScanSuccess, 
+            () => {}
+          );
+          // Setelah berhasil start via fallback, coba ambil daftar kamera untuk tombol switch
+          await getCameras();
+        }
+
+        isScanning = true;
+        setTimeout(checkTorchSupport, 500);
+
+      } catch (err) {
+        console.error('Error startScanner:', err);
+        showCameraError(err);
+        isScanning = false;
+      }
+    };
+
+    /* ==========================================================
+       SCANNER: Stop scanner
+       ========================================================== */
+    const stopScanner = async () => {
+      if (html5QrCode && isScanning) {
+        try {
+          await html5QrCode.stop();
+          html5QrCode.clear();
+        } catch (err) {
+          console.warn('Error stopping scanner:', err);
+        }
+      }
+      isScanning = false;
+      torchOn = false;
+      torchSupported = false;
+      const flashBtn = document.getElementById('flashBtn');
+      flashBtn.classList.remove('active');
+      flashBtn.disabled = true;
+    };
+
+    /* ==========================================================
+       SCANNER: Switch kamera
+       ========================================================== */
+    const switchCamera = async () => {
+      if (cameras.length <= 1) return;
+      currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+      await stopScanner();
+      await startScanner();
+    };
+
+    /* ==========================================================
+       SCANNER: Callback saat QR berhasil dibaca
+       ========================================================== */
+    const onScanSuccess = async (decodedText) => {
+      if (isProcessing) return;
+      isProcessing = true;
+
+      lastScannedId = decodedText;
+      playBeep();
+      vibrate(200);
+      await stopScanner();
+      await sendAttendance(decodedText);
+
+      isProcessing = false;
+    };
+
+    /* ==========================================================
+       API: Kirim data absensi ke Google Apps Script
+       ========================================================== */
+    const sendAttendance = async (studentId) => {
+      if (!navigator.onLine) {
+        showOfflineError();
+        return;
+      }
+
+      Swal.fire({
+        title: 'Memproses Absensi...',
+        text: 'Mohon tunggu sebentar',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      try {
+        const requestBody = {
+          id: studentId.trim(),
+          mode: currentMode
+        };
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+          redirect: 'follow'
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          throw new Error('Response server tidak valid (bukan JSON).');
+        }
+
+        if (data.success) {
+          showSuccessResult(data, studentId);
+        } else {
+          showErrorResult(data.message || 'QR Code tidak ditemukan');
+        }
+
+      } catch (err) {
+        clearTimeout(timeoutId);
+
+        if (err.name === 'AbortError') {
+          showErrorResult('Permintaan timeout. Server tidak merespons dalam 15 detik. Silakan coba lagi.');
+        } else if (!navigator.onLine) {
+          showOfflineError();
+        } else {
+          showErrorResult(`Gagal terhubung ke server: ${err.message}`);
+        }
+      }
+    };
+
+    /* ==========================================================
+       RESULT: Tampilkan hasil sukses
+       ========================================================== */
+    const showSuccessResult = (data, scannedId) => {
+      const now = new Date();
+      const tanggal = formatDate(now);
+      const jam = data.jam || formatTime(now).substring(0, 5);
+
+      Swal.fire({
+        title: '<strong>Absensi Berhasil</strong>',
+        html: `
+          <div style="text-align:center;">
+            <i class="fas fa-check-circle result-icon-success"></i>
+          </div>
+          <div class="result-info">
+            <div class="result-info-row">
+              <span class="result-info-label">Nama</span>
+              <span class="result-info-value">${data.nama || '-'}</span>
+            </div>
+            <div class="result-info-row">
+              <span class="result-info-label">NIS</span>
+              <span class="result-info-value">${scannedId}</span>
+            </div>
+            <div class="result-info-row">
+              <span class="result-info-label">Kelas</span>
+              <span class="result-info-value">${data.kelas || '-'}</span>
+            </div>
+            <div class="result-info-row">
+              <span class="result-info-label">Tanggal</span>
+              <span class="result-info-value">${tanggal}</span>
+            </div>
+            <div class="result-info-row">
+              <span class="result-info-label">Jam</span>
+              <span class="result-info-value">${jam}</span>
+            </div>
+            <div class="result-info-row">
+              <span class="result-info-label">Status</span>
+              <span class="result-info-value" style="color: #2E7D32; font-weight:700;">
+                ${data.status || 'Berhasil'}
+              </span>
+            </div>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi',
+        cancelButtonText: '<i class="fas fa-home"></i> Selesai',
+        confirmButtonColor: '#1565C0',
+        cancelButtonColor: '#757575',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        customClass: { popup: 'result-success' }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          startScanner();
+        } else {
+          showScreen('homeScreen');
+        }
+      });
+    };
+
+    /* ==========================================================
+       RESULT: Tampilkan hasil error
+       ========================================================== */
+    const showErrorResult = (message) => {
+      Swal.fire({
+        title: '<strong>Gagal</strong>',
+        html: `
+          <div style="text-align:center;">
+            <i class="fas fa-times-circle result-icon-error"></i>
+          </div>
+          <p style="margin-top:16px; font-size:1rem; color:#555;">
+            ${message}
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi',
+        cancelButtonText: '<i class="fas fa-home"></i> Selesai',
+        confirmButtonColor: '#C62828',
+        cancelButtonColor: '#757575',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        customClass: { popup: 'result-error' }
+      }).then((result) => {
+        if (result.isConfirmed) {
+          startScanner();
+        } else {
+          showScreen('homeScreen');
+        }
+      });
+    };
+
+    /* ==========================================================
+       RESULT: Tampilkan error offline
+       ========================================================== */
+    const showOfflineError = () => {
+      Swal.fire({
+        title: '<strong>Tidak Ada Koneksi</strong>',
+        html: `
+          <div style="text-align:center;">
+            <i class="fas fa-wifi" style="font-size:3.5rem;color:#C62828;"></i>
+          </div>
+          <p style="margin-top:16px; font-size:1rem; color:#555;">
+            Tidak ada koneksi internet. Pastikan perangkat terhubung ke WiFi atau data seluler.
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-redo"></i> Coba Lagi',
+        cancelButtonText: '<i class="fas fa-home"></i> Kembali',
+        confirmButtonColor: '#1565C0',
+        cancelButtonColor: '#757575',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then((result) => {
+        if (result.isConfirmed) {
+          sendAttendance(lastScannedId);
+        } else {
+          showScreen('homeScreen');
+        }
+      });
+    };
+
+    /* ==========================================================
+       EVENT LISTENERS
+       ========================================================== */
+    const initEventListeners = () => {
+      document.getElementById('startScanBtn').addEventListener('click', () => {
+        showScreen('scannerScreen');
+        setTimeout(startScanner, 300);
+      });
+
+      document.getElementById('backBtn').addEventListener('click', async () => {
+        await stopScanner();
+        showScreen('homeScreen');
+      });
+
+      document.getElementById('flashBtn').addEventListener('click', toggleTorch);
+      document.getElementById('switchCameraBtn').addEventListener('click', switchCamera);
+
+      document.getElementById('cameraRetryBtn').addEventListener('click', () => {
+        hideCameraError();
+        startScanner();
+      });
+
+      document.getElementById('modeMasukBtn').addEventListener('click', () => setMode('masuk'));
+      document.getElementById('modePulangBtn').addEventListener('click', () => setMode('pulang'));
+
+      document.getElementById('manualSubmitBtn').addEventListener('click', () => {
+        const input = document.getElementById('manualInput');
+        const value = input.value.trim();
+        if (value) {
+          input.value = '';
+          onScanSuccess(value);
+        }
+      });
+
+      document.getElementById('manualInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.getElementById('manualSubmitBtn').click();
+        }
+      });
+
+      window.addEventListener('online', updateConnectionStatus);
+      window.addEventListener('offline', updateConnectionStatus);
+
+      document.addEventListener('visibilitychange', async () => {
+        if (document.hidden && isScanning) {
+          await stopScanner();
+        }
+      });
+
+      window.addEventListener('beforeunload', async () => {
+        if (isScanning) {
+          await stopScanner();
+        }
+      });
+    };
+
+    /* ==========================================================
+       INIT APLIKASI
+       ========================================================== */
+    const init = () => {
+      document.getElementById('schoolNameHeader').textContent = SCHOOL_NAME;
+      startClock();
+      updateConnectionStatus();
+      setMode('masuk');
+      initEventListeners();
+
+      setTimeout(() => {
+        hideSplash();
+        showScreen('homeScreen');
+      }, 2000);
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
