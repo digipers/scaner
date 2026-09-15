@@ -93,6 +93,51 @@
     .swal2-popup.result-error   { border-top: 6px solid var(--danger-light)  !important; }
     .result-icon-success { font-size: 3.5rem; color: var(--success-light); }
     .result-icon-error   { font-size: 3.5rem; color: var(--danger-light);  }
+
+    /* RESPONSIVE ANDROID / MOBILE */
+    html, body { width: 100%; min-height: 100%; }
+    body { min-height: 100dvh; }
+    .screen { min-height: 100dvh; width: 100%; }
+    @media (max-width: 767px) {
+      .home-header { padding: 18px 14px 32px; border-radius: 0 0 22px 22px; }
+      .home-logo { width: 64px; height: 64px; margin-bottom: 9px; padding: 4px; }
+      .home-school-name { font-size: clamp(1rem, 4.5vw, 1.25rem); line-height: 1.25; }
+      .home-school-sub { font-size: .78rem; }
+      .home-body { padding: 16px 14px 24px; margin-top: -16px; }
+      .info-card { border-radius: 16px; padding: 16px 12px; margin-bottom: 14px; }
+      .info-date { font-size: .88rem; }
+      .info-time { font-size: clamp(2rem, 11vw, 2.7rem); margin: 4px 0; letter-spacing: 1px; }
+      .info-status { font-size: .78rem; padding: 5px 12px; margin-top: 4px; }
+      .mode-selector { gap: 8px; margin-bottom: 12px; }
+      .mode-btn { padding: 10px 8px; border-radius: 11px; font-size: .85rem; }
+      .mode-btn i { font-size: 1.05rem; margin-bottom: 2px; }
+      .scan-btn-wrapper { margin-top: 4px; }
+      .scan-btn { width: min(48vw, 170px); height: min(48vw, 170px); font-size: .95rem; gap: 5px; }
+      .scan-btn i { font-size: 2.35rem; }
+      .scanner-header { padding: 10px 12px; gap: 10px; }
+      .scanner-back-btn { width: 36px; height: 36px; }
+      .scanner-title { font-size: .95rem; }
+      .scanner-mode-badge { font-size: .7rem; padding: 3px 9px; }
+      .scanner-controls { bottom: 18px; gap: 14px; }
+      .control-btn { width: 48px; height: 48px; font-size: 1.1rem; }
+      .scanner-hint { bottom: 82px; font-size: .78rem; padding: 0 12px; }
+      .manual-input-section { padding: 8px 10px; }
+      .manual-input-section input { padding: 9px 11px; font-size: .88rem; }
+      .manual-input-section button { padding: 9px 12px; font-size: .85rem; }
+      .scan-frame { width: 72vw; height: 72vw; max-width: 280px; max-height: 280px; }
+      .splash-logo { width: 105px; height: 105px; padding: 8px; }
+      .splash-title { font-size: 1.15rem; margin-top: 16px; }
+      .splash-subtitle { font-size: .78rem; }
+    }
+    @media (max-height: 700px) and (max-width: 767px) {
+      .home-header { padding-top: 12px; padding-bottom: 24px; }
+      .home-logo { width: 54px; height: 54px; }
+      .home-body { padding-top: 12px; }
+      .info-card { padding: 12px 10px; margin-bottom: 10px; }
+      .info-time { font-size: 2rem; }
+      .scan-btn { width: 145px; height: 145px; }
+      .scan-btn i { font-size: 2rem; }
+    }
     .result-info { text-align: left; margin: 16px 0; }
     .result-info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
     .result-info-row:last-child { border-bottom: none; }
