@@ -222,7 +222,8 @@
     /* KONFIGURASI APLIKASI */
     // Ganti URL ini dengan URL deployment Google Apps Script terbaru Anda
     const API_URL = "https://script.google.com/macros/s/AKfycbx0nH308FqkarMFYVolCbFWMgjo8MGDWurC3Ssz-87_6e7PBhNUiZ9R79KZSfoq2Bk7/exec";
-    const REQUEST_TIMEOUT = 15000;
+    const REQUEST_TIMEOUT = 30000;
+    const REQUEST_GRACE_PERIOD = 5000;
     const SCHOOL_NAME = "MA. ASH SHIDIQI RAJABASA BARU";
 
     /* STATE GLOBAL */
@@ -415,30 +416,112 @@
     
     const onScanSuccess = async (decodedText) => { if (isProcessing) return; isProcessing = true; lastScannedId = decodedText; playBeep(); vibrate(200); await stopScanner(); await sendAttendance(decodedText); isProcessing = false; };
 
-    /* API: Kirim data absensi */
+    /* API: Kirim data absensi - dioptimalkan untuk HP */
     const sendAttendance = async (studentId) => {
+      const cleanId = String(studentId || '').trim();
+      if (!cleanId) { showErrorResult('NIS/ID siswa kosong. Silakan scan ulang.'); return; }
       if (!navigator.onLine) { showOfflineError(); return; }
-      Swal.fire({ title: 'Memproses Absensi...', text: 'Mohon tunggu sebentar', allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false, didOpen: () => { Swal.showLoading(); } });
-      const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+      Swal.fire({
+        title: 'Memproses Absensi...',
+        html: '<div id="requestStatusText">Menghubungkan ke server...</div><div style="font-size:.8rem;color:#777;margin-top:8px">Jangan tutup halaman sampai hasil tampil.</div>',
+        allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      let finished = false;
+
       try {
-        const now = new Date(); const yyyy = now.getFullYear(); const mm = String(now.getMonth() + 1).padStart(2, '0'); const dd = String(now.getDate()).padStart(2, '0'); const tanggal = `${yyyy}-${mm}-${dd}`;
-        const requestBody = { id: studentId.trim(), type: currentMode, tanggal: tanggal };
-        const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(requestBody), signal: controller.signal, redirect: 'follow' });
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const tanggal = `${yyyy}-${mm}-${dd}`;
+        const requestBody = { id: cleanId, type: currentMode, tanggal: tanggal };
+
+        const statusTimer = setTimeout(() => {
+          const el = document.getElementById('requestStatusText');
+          if (el) el.textContent = 'Server masih memproses... mohon tunggu.';
+        }, 5000);
+
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+          redirect: 'follow',
+          cache: 'no-store'
+        });
+
+        clearTimeout(statusTimer);
         clearTimeout(timeoutId);
-        if (!response.ok) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); }
-        let data; try { data = await response.json(); } catch (jsonErr) { throw new Error('Response server tidak valid.'); }
-        if (data.success) { showSuccessResult(data, studentId); } else { showErrorResult(data.message || 'QR Code tidak ditemukan'); }
+        finished = true;
+
+        if (response.status === 404) {
+          throw Object.assign(new Error('Endpoint absensi tidak ditemukan (404). Periksa deployment Web App Google Apps Script.'), { name: 'Endpoint404Error' });
+        }
+        if (!response.ok) {
+          throw Object.assign(new Error(`Server mengembalikan HTTP ${response.status}.`), { name: 'HttpError', status: response.status });
+        }
+
+        let data;
+        try { data = await response.json(); }
+        catch (jsonErr) { throw Object.assign(new Error('Server merespons tetapi format datanya tidak valid.'), { name: 'InvalidResponseError' }); }
+
+        if (data && data.success) {
+          showSuccessResult(data, cleanId);
+        } else {
+          showErrorResult((data && data.message) || 'QR Code tidak ditemukan atau absensi ditolak server.');
+        }
       } catch (err) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') { showErrorResult('Permintaan timeout. Server tidak merespons dalam 15 detik.'); } 
-        else if (!navigator.onLine) { showOfflineError(); } 
-        else { showErrorResult(`Gagal terhubung ke server: ${err.message}`); }
+        if (finished) return;
+
+        if (err.name === 'AbortError') {
+          // POST tidak diulang otomatis: server mungkin sudah menerima data walaupun respons terlambat.
+          showTimeoutResult(cleanId);
+        } else if (err.name === 'Endpoint404Error') {
+          showErrorResult('Alamat server absensi mengembalikan <b>404 Not Found</b>.<br><br>Ini bukan masalah kamera atau QR. URL Web App Google Apps Script perlu diperiksa/deploy ulang.');
+        } else if (!navigator.onLine || err.name === 'TypeError') {
+          showNetworkError(cleanId, err);
+        } else {
+          showErrorResult(`Gagal terhubung ke server: ${escapeHtml(err.message || 'Kesalahan tidak diketahui')}`);
+        }
       }
+    };
+
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[ch]));
+
+    const showTimeoutResult = (studentId) => {
+      Swal.fire({
+        icon: 'warning',
+        title: '<strong>Server Masih Memproses</strong>',
+        html: `<p style="color:#555;line-height:1.6">Respons server belum diterima dalam ${REQUEST_TIMEOUT / 1000} detik.</p><p style="color:#555;line-height:1.6"><b>Jangan langsung scan ulang.</b> Data absensi mungkin sudah diterima server. Tunggu beberapa saat lalu periksa hasilnya.</p>`,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi',
+        cancelButtonText: '<i class="fas fa-home"></i> Selesai',
+        confirmButtonColor: '#1565C0', cancelButtonColor: '#757575',
+        allowOutsideClick: false, allowEscapeKey: false
+      }).then((result) => {
+        if (result.isConfirmed) startScanner(); else showScreen('homeScreen');
+      });
+    };
+
+    const showNetworkError = (studentId, err) => {
+      Swal.fire({
+        icon: 'warning', title: '<strong>Koneksi Tidak Stabil</strong>',
+        html: `<p style="color:#555;line-height:1.6">HP gagal berkomunikasi dengan server absensi.</p><p style="font-size:.85rem;color:#777">${escapeHtml(err?.message || 'Periksa jaringan internet.')}</p>`,
+        showCancelButton: true, confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi',
+        cancelButtonText: '<i class="fas fa-home"></i> Selesai', confirmButtonColor: '#1565C0', cancelButtonColor: '#757575',
+        allowOutsideClick: false, allowEscapeKey: false
+      }).then((result) => { if (result.isConfirmed) startScanner(); else showScreen('homeScreen'); });
     };
 
     const showSuccessResult = (data, scannedId) => { const now = new Date(); const tanggal = formatDate(now); const jam = data.jam || formatTime(now).substring(0, 5); Swal.fire({ title: '<strong>Absensi Berhasil</strong>', html: `<div style="text-align:center;"><i class="fas fa-check-circle result-icon-success"></i></div><div class="result-info"><div class="result-info-row"><span class="result-info-label">Nama</span><span class="result-info-value">${data.nama || '-'}</span></div><div class="result-info-row"><span class="result-info-label">NIS</span><span class="result-info-value">${scannedId}</span></div><div class="result-info-row"><span class="result-info-label">Kelas</span><span class="result-info-value">${data.kelas || '-'}</span></div><div class="result-info-row"><span class="result-info-label">Tanggal</span><span class="result-info-value">${tanggal}</span></div><div class="result-info-row"><span class="result-info-label">Jam</span><span class="result-info-value">${jam}</span></div><div class="result-info-row"><span class="result-info-label">Status</span><span class="result-info-value" style="color: #2E7D32; font-weight:700;">${data.status || 'Berhasil'}</span></div></div>`, showCancelButton: true, confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi', cancelButtonText: '<i class="fas fa-home"></i> Selesai', confirmButtonColor: '#1565C0', cancelButtonColor: '#757575', allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'result-success' } }).then((result) => { if (result.isConfirmed) { startScanner(); } else { showScreen('homeScreen'); } }); };
     const showErrorResult = (message) => { Swal.fire({ title: '<strong>Gagal</strong>', html: `<div style="text-align:center;"><i class="fas fa-times-circle result-icon-error"></i></div><p style="margin-top:16px; font-size:1rem; color:#555;">${message}</p>`, showCancelButton: true, confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi', cancelButtonText: '<i class="fas fa-home"></i> Selesai', confirmButtonColor: '#C62828', cancelButtonColor: '#757575', allowOutsideClick: false, allowEscapeKey: false, customClass: { popup: 'result-error' } }).then((result) => { if (result.isConfirmed) { startScanner(); } else { showScreen('homeScreen'); } }); };
-    const showOfflineError = () => { Swal.fire({ title: '<strong>Tidak Ada Koneksi</strong>', html: `<div style="text-align:center;"><i class="fas fa-wifi" style="font-size:3.5rem;color:#C62828;"></i></div><p style="margin-top:16px; font-size:1rem; color:#555;">Tidak ada koneksi internet.</p>`, showCancelButton: true, confirmButtonText: '<i class="fas fa-redo"></i> Coba Lagi', cancelButtonText: '<i class="fas fa-home"></i> Kembali', confirmButtonColor: '#1565C0', cancelButtonColor: '#757575', allowOutsideClick: false, allowEscapeKey: false }).then((result) => { if (result.isConfirmed) { sendAttendance(lastScannedId); } else { showScreen('homeScreen'); } }); };
+    const showOfflineError = () => { Swal.fire({ title: '<strong>Tidak Ada Koneksi</strong>', html: `<div style="text-align:center;"><i class="fas fa-wifi" style="font-size:3.5rem;color:#C62828;"></i></div><p style="margin-top:16px; font-size:1rem; color:#555;">HP sedang offline. Hubungkan ke internet lalu scan ulang.</p>`, showCancelButton: true, confirmButtonText: '<i class="fas fa-qrcode"></i> Scan Lagi', cancelButtonText: '<i class="fas fa-home"></i> Kembali', confirmButtonColor: '#1565C0', cancelButtonColor: '#757575', allowOutsideClick: false, allowEscapeKey: false }).then((result) => { if (result.isConfirmed) { startScanner(); } else { showScreen('homeScreen'); } }); };
 
     const initEventListeners = () => {
       document.getElementById('startScanBtn').addEventListener('click', () => { showScreen('scannerScreen'); setTimeout(startScanner, 300); });
