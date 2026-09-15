@@ -239,16 +239,18 @@
     const setMode = (mode) => { currentMode = mode; document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode)); document.getElementById('scannerModeBadge').textContent = `${mode === 'masuk' ? 'Masuk' : 'Pulang'} • ${currentCameraLabel}`; };
 
     // Ambil kamera dan pertahankan kamera yang sedang dipilih.
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
     const getCameras = async () => {
       try {
         const detected = await Html5Qrcode.getCameras();
         cameras = Array.isArray(detected) ? detected : [];
         if (cameras.length === 0) return;
 
-        // Jika belum ada kamera yang dipilih, selalu mulai dari kamera belakang.
+        // Pertahankan kamera yang sedang dipilih jika masih tersedia.
         if (currentCameraIndex < 0 || currentCameraIndex >= cameras.length) {
-          const backIndex = cameras.findIndex(cam => /back|rear|environment|belakang/i.test(cam.label || ''));
-          currentCameraIndex = backIndex >= 0 ? backIndex : cameras.length - 1;
+          const backIndex = cameras.findIndex(cam => isBackCamera(cam));
+          currentCameraIndex = backIndex >= 0 ? backIndex : Math.max(0, cameras.length - 1);
         }
       } catch (err) {
         cameras = [];
@@ -258,14 +260,59 @@
     const isFrontCamera = (camera) => /front|user|facetime|facing\s*front|depan/i.test(camera?.label || '');
     const isBackCamera = (camera) => /back|rear|environment|facing\s*back|belakang/i.test(camera?.label || '');
 
+    // Target kamera yang diinginkan. Ini dipakai agar Chrome/Firefox/Android
+    // tetap bisa memilih kamera walaupun label deviceId tidak lengkap.
+    let cameraFacing = 'back';
+
     const updateCameraBadge = () => {
       document.getElementById('scannerModeBadge').textContent = `${currentMode === 'masuk' ? 'Masuk' : 'Pulang'} • ${currentCameraLabel}`;
     };
 
-    const showCameraError = (error) => { const errorEl = document.getElementById('cameraError'); const titleEl = document.getElementById('cameraErrorTitle'); const msgEl = document.getElementById('cameraErrorMsg'); const hintEl = document.getElementById('scannerHint'); let title = 'Kamera Tidak Dapat Dibuka'; let message = ''; if (error && error.name) { switch (error.name) { case 'NotAllowedError': title = 'Izin Kamera Ditolak'; message = 'Aplikasi tidak diizinkan mengakses kamera. Buka pengaturan browser/HP, izinkan akses kamera, lalu coba lagi.'; break; case 'NotFoundError': title = 'Kamera Tidak Ditemukan'; message = 'Tidak ada kamera yang terdeteksi pada perangkat ini.'; break; case 'NotReadableError': title = 'Kamera Sedang Digunakan'; message = 'Kamera sedang digunakan oleh aplikasi lain. Tutup aplikasi tersebut, lalu coba lagi.'; break; default: title = 'Gagal Membuka Kamera'; message = `${error.name}: ${error.message || 'Unknown error'}`; } } else if (typeof error === 'string') { message = error; } else { message = 'Terjadi kesalahan tidak diketahui.'; } titleEl.textContent = title; msgEl.textContent = message; errorEl.style.display = 'block'; hintEl.style.display = 'none'; };
+    const showCameraError = (error) => { const errorEl = document.getElementById('cameraError'); const titleEl = document.getElementById('cameraErrorTitle'); const msgEl = document.getElementById('cameraErrorMsg'); const hintEl = document.getElementById('scannerHint'); let title = 'Kamera Tidak Dapat Dibuka'; let message = ''; if (error && error.name) { switch (error.name) { case 'NotAllowedError': title = 'Izin Kamera Ditolak'; message = 'Aplikasi tidak diizinkan mengakses kamera. Buka pengaturan browser/HP, izinkan akses kamera, lalu coba lagi.'; break; case 'NotFoundError': title = 'Kamera Tidak Ditemukan'; message = 'Tidak ada kamera yang terdeteksi pada perangkat ini.'; break; case 'NotReadableError': title = 'Kamera Tidak Bisa Dibuka'; message = 'Browser gagal mengaktifkan kamera. Tutup aplikasi/browser lain yang memakai kamera, lalu tekan Coba Lagi.'; break; case 'OverconstrainedError': title = 'Kamera Tidak Cocok'; message = 'Browser tidak dapat menggunakan pilihan kamera tersebut. Sistem akan mencoba metode kamera lain.'; break; default: title = 'Gagal Membuka Kamera'; message = `${error.name}: ${error.message || 'Unknown error'}`; } } else if (typeof error === 'string') { message = error; } else { message = 'Terjadi kesalahan tidak diketahui.'; } titleEl.textContent = title; msgEl.textContent = message; errorEl.style.display = 'block'; hintEl.style.display = 'none'; };
     const hideCameraError = () => { document.getElementById('cameraError').style.display = 'none'; document.getElementById('scannerHint').style.display = 'block'; };
     const checkTorchSupport = async () => { try { if (!html5QrCode) return; const videoElement = document.getElementById('reader').querySelector('video'); if (!videoElement || !videoElement.srcObject) return; const stream = videoElement.srcObject; const track = stream.getVideoTracks()[0]; if (track && track.getCapabilities) { const capabilities = track.getCapabilities(); torchSupported = !!(capabilities && capabilities.torch); } } catch (err) { torchSupported = false; } document.getElementById('flashBtn').disabled = !torchSupported; };
     const toggleTorch = async () => { if (!torchSupported) return; try { const videoElement = document.getElementById('reader').querySelector('video'); const stream = videoElement.srcObject; const track = stream.getVideoTracks()[0]; torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); document.getElementById('flashBtn').classList.toggle('active', torchOn); } catch (err) { torchOn = false; document.getElementById('flashBtn').classList.remove('active'); } };
+
+    // Mencoba beberapa metode constraint kamera secara berurutan.
+    // Urutan ini penting untuk kompatibilitas Chrome, Edge, Firefox, dan browser Android.
+    const startCameraWithFallback = async (camera, config) => {
+      const facing = cameraFacing === 'front' ? 'user' : 'environment';
+      const attempts = [];
+
+      if (camera && camera.id) {
+        attempts.push({ type: 'deviceId', value: camera.id });
+      }
+
+      // exact lebih tegas, ideal lebih longgar untuk perangkat yang tidak
+      // mendukung constraint exact dengan baik.
+      attempts.push({ type: 'facingMode', value: { facingMode: { exact: facing } } });
+      attempts.push({ type: 'facingMode', value: { facingMode: { ideal: facing } } });
+      attempts.push({ type: 'facingMode-simple', value: { facingMode: facing } });
+
+      let lastError = null;
+      for (let i = 0; i < attempts.length; i++) {
+        try {
+          // Bersihkan instance setelah kegagalan percobaan sebelumnya.
+          if (i > 0) {
+            try { if (html5QrCode) await html5QrCode.stop(); } catch (e) {}
+            try { if (html5QrCode) html5QrCode.clear(); } catch (e) {}
+            await sleep(250);
+            html5QrCode = new Html5Qrcode('reader');
+          }
+
+          await html5QrCode.start(attempts[i].value, config, onScanSuccess, () => {});
+          return { success: true, method: attempts[i].type };
+        } catch (err) {
+          lastError = err;
+          console.warn(`Percobaan kamera ${attempts[i].type} gagal:`, err);
+          // Izin ditolak tidak perlu dicoba berulang dengan constraint lain.
+          if (err && err.name === 'NotAllowedError' || err && err.name === 'SecurityError') break;
+          await sleep(250);
+        }
+      }
+      throw lastError || new Error('Kamera tidak dapat dibuka.');
+    };
+
     const startScanner = async () => {
       hideCameraError();
       if (typeof Html5Qrcode === 'undefined') {
@@ -279,12 +326,12 @@
           try { html5QrCode.clear(); } catch (e) {}
           html5QrCode = null;
           isScanning = false;
-          // Beri waktu kamera Android benar-benar dilepas sebelum membuka kamera lain.
-          await new Promise(resolve => setTimeout(resolve, 350));
+          await sleep(400);
         }
 
         if (cameras.length === 0) await getCameras();
-        html5QrCode = new Html5Qrcode("reader");
+
+        html5QrCode = new Html5Qrcode('reader');
         const config = {
           fps: 10,
           qrbox: (viewfinderWidth, viewfinderHeight) => {
@@ -295,58 +342,77 @@
           aspectRatio: window.innerHeight / window.innerWidth
         };
 
-        if (cameras.length > 0 && cameras[currentCameraIndex]) {
-          const camera = cameras[currentCameraIndex];
-          currentCameraLabel = isFrontCamera(camera) ? 'Kamera Depan' : 'Kamera Belakang';
-          updateCameraBadge();
-          await html5QrCode.start(camera.id, config, onScanSuccess, () => {});
-        } else {
-          // Fallback bila daftar kamera belum tersedia.
-          currentCameraLabel = 'Kamera Belakang';
-          updateCameraBadge();
-          await html5QrCode.start({ facingMode: { ideal: 'environment' } }, config, onScanSuccess, () => {});
-          await getCameras();
+        // Cari kamera berdasarkan peran terlebih dahulu.
+        let camera = null;
+        if (cameras.length > 0) {
+          const preferredIndex = cameraFacing === 'front'
+            ? cameras.findIndex(cam => isFrontCamera(cam))
+            : cameras.findIndex(cam => isBackCamera(cam));
+
+          if (preferredIndex >= 0) {
+            currentCameraIndex = preferredIndex;
+            camera = cameras[preferredIndex];
+          } else if (cameras[currentCameraIndex]) {
+            camera = cameras[currentCameraIndex];
+          }
         }
 
+        currentCameraLabel = cameraFacing === 'front' ? 'Kamera Depan' : 'Kamera Belakang';
+        updateCameraBadge();
+
+        await startCameraWithFallback(camera, config);
         isScanning = true;
+
+        // Setelah izin kamera diberikan, label kamera biasanya menjadi lebih lengkap.
+        await getCameras();
+        if (cameras.length > 0) {
+          const actualIndex = cameraFacing === 'front'
+            ? cameras.findIndex(cam => isFrontCamera(cam))
+            : cameras.findIndex(cam => isBackCamera(cam));
+          if (actualIndex >= 0) currentCameraIndex = actualIndex;
+        }
+
         setTimeout(checkTorchSupport, 500);
       } catch (err) {
         showCameraError(err);
         isScanning = false;
       }
     };
+
     const stopScanner = async () => { if (html5QrCode && isScanning) { try { await html5QrCode.stop(); html5QrCode.clear(); } catch (err) {} } isScanning = false; torchOn = false; torchSupported = false; const flashBtn = document.getElementById('flashBtn'); flashBtn.classList.remove('active'); flashBtn.disabled = true; };
+
     const switchCamera = async () => {
       if (isProcessing) return;
       if (cameras.length === 0) await getCameras();
 
-      if (cameras.length < 2) {
+      // Toggle selalu: Belakang -> Depan -> Belakang -> Depan.
+      const targetFacing = cameraFacing === 'back' ? 'front' : 'back';
+      let nextIndex = -1;
+
+      if (cameras.length > 0) {
+        nextIndex = targetFacing === 'front'
+          ? cameras.findIndex(cam => isFrontCamera(cam))
+          : cameras.findIndex(cam => isBackCamera(cam));
+      }
+
+      // Jika label kamera tidak memberi petunjuk, pilih kamera lain.
+      if (nextIndex < 0 && cameras.length > 1) {
+        nextIndex = (currentCameraIndex + 1) % cameras.length;
+      }
+
+      if (cameras.length < 2 && nextIndex < 0) {
         Swal.fire({ icon: 'info', title: 'Kamera Tidak Tersedia', text: 'Perangkat ini tidak memiliki kamera lain untuk diganti.', confirmButtonColor: '#1565C0' });
         return;
       }
 
-      const currentCamera = cameras[currentCameraIndex];
-      const currentlyFront = isFrontCamera(currentCamera) || currentCameraLabel === 'Kamera Depan';
-      let nextIndex = -1;
+      cameraFacing = targetFacing;
+      if (nextIndex >= 0) currentCameraIndex = nextIndex;
 
-      // Prioritas: benar-benar cari kamera lawan (Depan <-> Belakang).
-      if (currentlyFront) {
-        nextIndex = cameras.findIndex((cam, i) => i !== currentCameraIndex && isBackCamera(cam));
-      } else {
-        nextIndex = cameras.findIndex((cam, i) => i !== currentCameraIndex && isFrontCamera(cam));
-      }
-
-      // Jika nama kamera Android tidak memberi informasi depan/belakang,
-      // gunakan kamera lain sebagai fallback.
-      if (nextIndex < 0) {
-        nextIndex = (currentCameraIndex + 1) % cameras.length;
-      }
-
-      currentCameraIndex = nextIndex;
       await stopScanner();
-      await new Promise(resolve => setTimeout(resolve, 350));
+      await sleep(500);
       await startScanner();
     };
+    
     const onScanSuccess = async (decodedText) => { if (isProcessing) return; isProcessing = true; lastScannedId = decodedText; playBeep(); vibrate(200); await stopScanner(); await sendAttendance(decodedText); isProcessing = false; };
 
     /* API: Kirim data absensi */
